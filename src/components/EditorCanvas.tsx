@@ -4,14 +4,28 @@ import Konva from 'konva'
 import FloatingToolbar from './FloatingToolbar'
 import ImageToolbar from './ImageToolbar'
 import ShapeToolbar from './ShapeToolbar'
+import type { EditorObject } from '../types'
 
 type EditorCanvasProps = {
   showText: boolean
   imageUrl: string | null
   showShape: boolean
+  selectedLayer: 'text' | 'image' | 'shape' | null
+
+  objects: EditorObject[]
+  selectedId: string | null
+  onSelectObject: (id: string | null) => void
 }
 
-function EditorCanvas({ showText, imageUrl, showShape, }: EditorCanvasProps) {
+function EditorCanvas({ 
+  showText, 
+  imageUrl, 
+  showShape, 
+  selectedLayer, 
+  objects,
+  selectedId, 
+  onSelectObject,
+}: EditorCanvasProps) {
   const [selectedType, setSelectedType] =
     useState<'text' | 'image' | 'shape' | null>(null)
     
@@ -45,6 +59,13 @@ function EditorCanvas({ showText, imageUrl, showShape, }: EditorCanvasProps) {
   const [shapeOpacity, setShapeOpacity] = useState(1)
   const [shapeCornerRadius, setShapeCornerRadius] = useState(0)
   const [shapeVisible, setShapeVisible] = useState(true)
+
+  // 레이어 목록에서 객체를 클릭했을 때 해당 객체 선택
+  useEffect(() => {
+    if (selectedLayer) {
+      setSelectedType(selectedLayer)
+    }
+  }, [selectedLayer])
 
   // 선택한 객체에 Transformer 연결
   useEffect(() => {
@@ -102,6 +123,43 @@ function EditorCanvas({ showText, imageUrl, showShape, }: EditorCanvasProps) {
         }}
       >
         <Layer>
+
+          {/* 새로운 다중 텍스트 객체 */}
+          {objects
+            .filter((obj) => obj.type === 'text')
+            .map((obj) => {
+              if (obj.type !== 'text') return null
+
+              let objectFontStyle = 'normal'
+
+              if (obj.bold && obj.italic) {
+                objectFontStyle = 'bold italic'
+              } else if (obj.bold) {
+                objectFontStyle = 'bold'
+              } else if (obj.italic) {
+                objectFontStyle = 'italic'
+              }
+
+              return (
+                <Text
+                  key={obj.id}
+                  text={obj.text}
+                  x={obj.x}
+                  y={obj.y}
+                  width={obj.width}
+                  fontSize={obj.fontSize}
+                  fontFamily={obj.fontFamily}
+                  fontStyle={objectFontStyle}
+                  fill={obj.fill}
+                  align={obj.align}
+                  rotation={obj.rotation}
+                  draggable
+                  onClick={() => onSelectObject(obj.id)}
+                  onTap={() => onSelectObject(obj.id)}
+                />
+              )
+            })}
+
           {/* 텍스트 */}
           {showText && (
             <Text
