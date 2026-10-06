@@ -1,115 +1,137 @@
 import { useEffect, useRef, useState } from 'react'
-import { Image, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
+import { Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import Konva from 'konva'
 import FloatingToolbar from './FloatingToolbar'
 import ImageToolbar from './ImageToolbar'
 import ShapeToolbar from './ShapeToolbar'
+import CanvasImage from './CanvasImage'
 import type { EditorObject } from '../types'
 
 type EditorCanvasProps = {
-  showText: boolean
-  imageUrl: string | null
-  showShape: boolean
-  selectedLayer: 'text' | 'image' | 'shape' | null
 
   objects: EditorObject[]
   selectedId: string | null
   onSelectObject: (id: string | null) => void
+  onObjectsChange: (objects: EditorObject[]) => void
 }
 
 function EditorCanvas({ 
-  showText, 
-  imageUrl, 
-  showShape, 
-  selectedLayer, 
   objects,
   selectedId, 
   onSelectObject,
+  onObjectsChange,
 }: EditorCanvasProps) {
-  const [selectedType, setSelectedType] =
-    useState<'text' | 'image' | 'shape' | null>(null)
     
 
-  // 텍스트 설정
-  const [text, setText] = useState('텍스트를 입력하세요')
-  const [fontSize, setFontSize] = useState(24)
-  const [fontFamily, setFontFamily] = useState('Arial')
-  const [textColor, setTextColor] = useState('#222222')
-  const [bold, setBold] = useState(false)
-  const [italic, setItalic] = useState(false)
-
-  const [align, setAlign] =
-    useState<'left' | 'center' | 'right'>('left')
-
   // 이미지 설정
-  const [image, setImage] =
-    useState<HTMLImageElement | null>(null)
-
-    const [imageOpacity, setImageOpacity] = useState(1)
-    const [imageFlipped, setImageFlipped] = useState(false)
-
-  const textRef = useRef<Konva.Text>(null)
-  const imageRef = useRef<Konva.Image>(null)
-  const shapeRef = useRef<Konva.Rect>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
 
-  // 도형 설정
-  const [shapeFillColor, setShapeFillColor] = useState('#d9d9d9')
-  const [shapeStrokeColor, setShapeStrokeColor] = useState('#444444')
-  const [shapeOpacity, setShapeOpacity] = useState(1)
-  const [shapeCornerRadius, setShapeCornerRadius] = useState(0)
-  const [shapeVisible, setShapeVisible] = useState(true)
-
-  // 레이어 목록에서 객체를 클릭했을 때 해당 객체 선택
-  useEffect(() => {
-    if (selectedLayer) {
-      setSelectedType(selectedLayer)
-    }
-  }, [selectedLayer])
-
-  // 선택한 객체에 Transformer 연결
+  // 고유 ID로 선택한 객체에 Transformer 연결
   useEffect(() => {
     if (!transformerRef.current) return
 
-    if (selectedType === 'text' && textRef.current) {
-    transformerRef.current.nodes([textRef.current])
-    } else if (selectedType === 'image' && imageRef.current) {
-      transformerRef.current.nodes([imageRef.current])
-    } else if (selectedType === 'shape' && shapeRef.current) {
-      transformerRef.current.nodes([shapeRef.current])
+    const stage = transformerRef.current.getStage()
+
+    if (!stage || !selectedId) {
+      transformerRef.current.nodes([])
+      transformerRef.current.getLayer()?.batchDraw()
+      return
+    }
+
+    const selectedNode = stage.findOne(`#${selectedId}`)
+
+    if (selectedNode) {
+      transformerRef.current.nodes([selectedNode])
     } else {
       transformerRef.current.nodes([])
     }
 
     transformerRef.current.getLayer()?.batchDraw()
-  }, [selectedType, image])
+  }, [selectedId, objects])
 
-  // 업로드한 이미지 불러오기
-  useEffect(() => {
-    if (!imageUrl) {
-      setImage(null)
-      return
-    }
+  // 현재 선택된 다중 텍스트 객체 찾기
+const selectedTextObject = objects.find(
+  (
+    obj
+  ): obj is Extract<EditorObject, { type: 'text' }> =>
+    obj.id === selectedId && obj.type === 'text'
+)
 
-    const img = new window.Image()
+// 선택된 텍스트 객체 수정
+const updateSelectedText = (
+    changes: Partial<Extract<EditorObject, { type: 'text' }>>
+  ) => {
+    if (!selectedId) return
 
-    img.onload = () => {
-      setImage(img)
-      setSelectedType('image')
-    }
+    const updatedObjects = objects.map((obj) => {
+      if (obj.id === selectedId && obj.type === 'text') {
+        return {
+          ...obj,
+          ...changes,
+        }
+      }
 
-    img.src = imageUrl
-  }, [imageUrl])
+      return obj
+    })
 
-  let fontStyle = 'normal'
-
-  if (bold && italic) {
-    fontStyle = 'bold italic'
-  } else if (bold) {
-    fontStyle = 'bold'
-  } else if (italic) {
-    fontStyle = 'italic'
+    onObjectsChange(updatedObjects)
   }
+
+  // 현재 선택된 다중 이미지 객체 찾기
+const selectedImageObject = objects.find(
+  (
+    obj
+  ): obj is Extract<EditorObject, { type: 'image' }> =>
+    obj.id === selectedId && obj.type === 'image'
+)
+
+// 선택된 이미지 객체 수정
+const updateSelectedImage = (
+  changes: Partial<Extract<EditorObject, { type: 'image' }>>
+) => {
+  if (!selectedId) return
+
+  const updatedObjects = objects.map((obj) => {
+    if (obj.id === selectedId && obj.type === 'image') {
+      return {
+        ...obj,
+        ...changes,
+      }
+    }
+
+    return obj
+  })
+
+  onObjectsChange(updatedObjects)
+}
+
+// 현재 선택된 다중 도형 객체 찾기
+const selectedShapeObject = objects.find(
+  (
+    obj
+  ): obj is Extract<EditorObject, { type: 'shape' }> =>
+    obj.id === selectedId && obj.type === 'shape'
+)
+
+// 선택된 도형 객체 수정
+const updateSelectedShape = (
+  changes: Partial<Extract<EditorObject, { type: 'shape' }>>
+) => {
+  if (!selectedId) return
+
+  const updatedObjects = objects.map((obj) => {
+    if (obj.id === selectedId && obj.type === 'shape') {
+      return {
+        ...obj,
+        ...changes,
+      }
+    }
+
+    return obj
+  })
+
+  onObjectsChange(updatedObjects)
+}
 
   return (
     <>
@@ -118,7 +140,7 @@ function EditorCanvas({
         height={500}
         onMouseDown={(e) => {
           if (e.target === e.target.getStage()) {
-            setSelectedType(null)
+            onSelectObject(null)
           }
         }}
       >
@@ -143,6 +165,7 @@ function EditorCanvas({
               return (
                 <Text
                   key={obj.id}
+                  id={obj.id}
                   text={obj.text}
                   x={obj.x}
                   y={obj.y}
@@ -154,69 +177,166 @@ function EditorCanvas({
                   align={obj.align}
                   rotation={obj.rotation}
                   draggable
+
+                  onDragEnd={(e) => {
+                    const updatedObjects = objects.map((item) => {
+                      if (item.id === obj.id && item.type === 'text') {
+                        return {
+                          ...item,
+                          x: e.target.x(),
+                          y: e.target.y(),
+                        }
+                      }
+
+                      return item
+                    })
+
+                    onObjectsChange(updatedObjects)
+                  }}
+
+                  onTransformEnd={(e) => {
+                    const node = e.target as Konva.Text
+
+                    const scaleX = node.scaleX()
+                    const scaleY = node.scaleY()
+
+                    const updatedObjects = objects.map((item) => {
+                      if (item.id === obj.id && item.type === 'text') {
+                        return {
+                          ...item,
+                          x: node.x(),
+                          y: node.y(),
+                          width: Math.max(50, node.width() * scaleX),
+                          fontSize: Math.max(8, node.fontSize() * scaleY),
+                          rotation: node.rotation(),
+                        }
+                      }
+
+                      return item
+                    })
+
+                    // Transformer의 확대/축소값 초기화
+                    node.scaleX(1)
+                    node.scaleY(1)
+
+                    onObjectsChange(updatedObjects)
+                  }}
+
                   onClick={() => onSelectObject(obj.id)}
                   onTap={() => onSelectObject(obj.id)}
                 />
               )
             })}
 
-          {/* 텍스트 */}
-          {showText && (
-            <Text
-              ref={textRef}
-              text={text}
-              x={230}
-              y={220}
-              width={250}
-              fontSize={fontSize}
-              fontFamily={fontFamily}
-              fontStyle={fontStyle}
-              fill={textColor}
-              align={align}
-              draggable
-              onClick={() => setSelectedType('text')}
-              onTap={() => setSelectedType('text')}
-            />
-          )}
+            {/* 새로운 다중 이미지 객체 */}
+          {objects
+            .filter((obj) => obj.type === 'image')
+            .map((obj) => {
+              if (obj.type !== 'image') return null
 
-          {/* 이미지 */}
-          {image && (
-          <Image
-            ref={imageRef}
-            image={image}
-            x={imageFlipped ? 500 : 200}
-            y={120}
-            width={300}
-            height={200}
-            opacity={imageOpacity}
-            scaleX={imageFlipped ? -1 : 1}
-            draggable
-            onClick={() => setSelectedType('image')}
-            onTap={() => setSelectedType('image')}
-          />
-        )}
+              return (
+                <CanvasImage
+                  key={obj.id}
+                  object={obj}
+                  onSelect={() => {
+                    onSelectObject(obj.id)
+                  }}
+                  onChange={(changes) => {
+                    const updatedObjects = objects.map((item) => {
+                      if (item.id === obj.id && item.type === 'image') {
+                        return {
+                          ...item,
+                          ...changes,
+                        }
+                      }
 
-          {/* 도형 */}
-          {showShape && shapeVisible && (
-            <Rect
-              ref={shapeRef}
-              x={250}
-              y={170}
-              width={200}
-              height={150}
-              fill={shapeFillColor}
-              stroke={shapeStrokeColor}
-              strokeWidth={2}
-              opacity={shapeOpacity}
-              cornerRadius={shapeCornerRadius}
-              draggable
-              onClick={() => setSelectedType('shape')}
-              onTap={() => setSelectedType('shape')}
-            />
-          )}
+                      return item
+                    })
+
+                    onObjectsChange(updatedObjects)
+                  }}
+                />
+              )
+            })}
+
+            {/* 새로운 다중 도형 객체 */}
+            {objects
+              .filter((obj) => obj.type === 'shape')
+              .map((obj) => {
+                if (obj.type !== 'shape') return null
+
+                return (
+                  <Rect
+                    key={obj.id}
+                    id={obj.id}
+                    x={obj.x}
+                    y={obj.y}
+                    width={obj.width}
+                    height={obj.height}
+                    fill={obj.fill}
+                    stroke={obj.stroke}
+                    strokeWidth={obj.strokeWidth}
+                    opacity={obj.opacity}
+                    cornerRadius={obj.cornerRadius}
+                    rotation={obj.rotation}
+                    draggable
+
+                    onClick={() => {
+                      onSelectObject(obj.id)
+                    }}
+
+                    onTap={() => {
+                      onSelectObject(obj.id)
+                    }}
+
+                    onDragEnd={(e) => {
+                      const updatedObjects = objects.map((item) => {
+                        if (item.id === obj.id && item.type === 'shape') {
+                          return {
+                            ...item,
+                            x: e.target.x(),
+                            y: e.target.y(),
+                          }
+                        }
+
+                        return item
+                      })
+
+                      onObjectsChange(updatedObjects)
+                    }}
+
+                    onTransformEnd={(e) => {
+                      const node = e.target as Konva.Rect
+
+                      const scaleX = node.scaleX()
+                      const scaleY = node.scaleY()
+
+                      const updatedObjects = objects.map((item) => {
+                        if (item.id === obj.id && item.type === 'shape') {
+                          return {
+                            ...item,
+                            x: node.x(),
+                            y: node.y(),
+                            width: Math.max(20, node.width() * scaleX),
+                            height: Math.max(20, node.height() * scaleY),
+                            rotation: node.rotation(),
+                          }
+                        }
+
+                        return item
+                      })
+
+                      node.scaleX(1)
+                      node.scaleY(1)
+
+                      onObjectsChange(updatedObjects)
+                    }}
+                  />
+                )
+              })}
 
         {/* 선택 테두리 */}
-        {selectedType && (
+        {selectedId && (
           <Transformer
             ref={transformerRef}
             rotateEnabled={true}
@@ -235,64 +355,114 @@ function EditorCanvas({
         </Layer>
       </Stage>
 
-      {/* 텍스트 선택 시에만 텍스트 툴바 표시 */}
-      {showText && selectedType === 'text' && (
+      {/* 다중 텍스트 선택 시 툴바 표시 */}
+      {selectedTextObject && (
         <FloatingToolbar
-          text={text}
-          fontSize={fontSize}
-          fontFamily={fontFamily}
-          textColor={textColor}
-          bold={bold}
-          italic={italic}
-          align={align}
-          onTextChange={setText}
-          onFontSizeChange={setFontSize}
-          onFontFamilyChange={setFontFamily}
-          onColorChange={setTextColor}
-          onBoldChange={() => setBold(!bold)}
-          onItalicChange={() => setItalic(!italic)}
-          onAlignChange={setAlign}
+          text={selectedTextObject.text}
+          fontSize={selectedTextObject.fontSize}
+          fontFamily={selectedTextObject.fontFamily}
+          textColor={selectedTextObject.fill}
+          bold={selectedTextObject.bold}
+          italic={selectedTextObject.italic}
+          align={selectedTextObject.align}
+
+          onTextChange={(value) =>
+            updateSelectedText({ text: value })
+          }
+
+          onFontSizeChange={(value) =>
+            updateSelectedText({ fontSize: value })
+          }
+
+          onFontFamilyChange={(value) =>
+            updateSelectedText({ fontFamily: value })
+          }
+
+          onColorChange={(value) =>
+            updateSelectedText({ fill: value })
+          }
+
+          onBoldChange={() =>
+            updateSelectedText({
+              bold: !selectedTextObject.bold,
+            })
+          }
+
+          onItalicChange={() =>
+            updateSelectedText({
+              italic: !selectedTextObject.italic,
+            })
+          }
+
+          onAlignChange={(value) =>
+            updateSelectedText({ align: value })
+          }
         />
       )}
 
-      {/* 이미지를 선택했을 때 */}
-      {image && selectedType === 'image' && (
+      {/* 다중 이미지 선택 시 툴바 표시 */}
+      {selectedImageObject && (
         <ImageToolbar
-          opacity={imageOpacity}
-          onOpacityChange={setImageOpacity}
+          opacity={selectedImageObject.opacity}
 
-          onFlip={() => {
-            setImageFlipped(!imageFlipped)
-          }}
+          onOpacityChange={(value) =>
+            updateSelectedImage({ opacity: value })
+          }
 
-          onRotate={() => {
-            if (imageRef.current) {
-              imageRef.current.rotate(90)
-              imageRef.current.getLayer()?.batchDraw()
-            }
-          }}
+          onFlip={() =>
+            updateSelectedImage({
+              flipped: !selectedImageObject.flipped,
+            })
+          }
+
+          onRotate={() =>
+            updateSelectedImage({
+              rotation: selectedImageObject.rotation + 90,
+            })
+          }
 
           onDelete={() => {
-            setImage(null)
-            setSelectedType(null)
+            const updatedObjects = objects.filter(
+              (obj) => obj.id !== selectedImageObject.id
+            )
+
+            onObjectsChange(updatedObjects)
+            onSelectObject(null)
           }}
         />
       )}
 
-      {/* 도형을 선택했을 때 */}
-      {showShape && shapeVisible && selectedType === 'shape' && (
+      {/* 다중 도형 선택 시 툴바 표시 */}
+      {selectedShapeObject && (
         <ShapeToolbar
-          fillColor={shapeFillColor}
-          strokeColor={shapeStrokeColor}
-          opacity={shapeOpacity}
-          cornerRadius={shapeCornerRadius}
-          onFillColorChange={setShapeFillColor}
-          onStrokeColorChange={setShapeStrokeColor}
-          onOpacityChange={setShapeOpacity}
-          onCornerRadiusChange={setShapeCornerRadius}
+          fillColor={selectedShapeObject.fill}
+          strokeColor={selectedShapeObject.stroke}
+          opacity={selectedShapeObject.opacity}
+          cornerRadius={selectedShapeObject.cornerRadius}
+
+          onFillColorChange={(value) =>
+            updateSelectedShape({ fill: value })
+          }
+
+          onStrokeColorChange={(value) =>
+            updateSelectedShape({ stroke: value })
+          }
+
+          onOpacityChange={(value) =>
+            updateSelectedShape({ opacity: value })
+          }
+
+          onCornerRadiusChange={(value) =>
+            updateSelectedShape({ cornerRadius: value })
+          }
+
           onDelete={() => {
-            setShapeVisible(false)
-            setSelectedType(null)
+            const updatedObjects = objects.filter(
+              (obj) => obj.id !== selectedShapeObject.id
+            )
+
+            onObjectsChange(updatedObjects)
+            onSelectObject(null)
           }}
         />
       )}

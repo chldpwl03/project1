@@ -4,30 +4,30 @@ import EditorCanvas from './components/EditorCanvas'
 import type { EditorObject } from './types'
 
 function App() {
-  // 텍스트가 캔버스에 표시되는지 관리
-  const [showText, setShowText] = useState(false)
-
-  // 업로드한 이미지 주소 관리
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-
-  const [showShape, setShowShape] = useState(false)
 
   // 레이어 패널 열기/닫기
   const [showLayers, setShowLayers] = useState(false)
-
-  // 레이어에서 선택한 객체
-  const [selectedLayer, setSelectedLayer] =
-  useState<'text' | 'image' | 'shape' | null>(null)
 
   // 새로운 다중 객체 구조
   // 모든 편집 객체 저장
   const [objects, setObjects] = useState<EditorObject[]>([])
 
+  // Undo / Redo 기록
+  const [past, setPast] = useState<EditorObject[][]>([])
+  const [future, setFuture] = useState<EditorObject[][]>([])
+
   // 현재 선택한 객체의 고유 ID
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
+  // 객체가 변경될 때 이전 상태 저장
+  const updateObjects = (newObjects: EditorObject[]) => {
+    setPast((prev) => [...prev, objects])
+    setObjects(newObjects)
+    setFuture([])
+  }
+
   // 새 텍스트 객체 추가
-const handleAddText = () => {
+  const handleAddText = () => {
   const newText: EditorObject = {
     id: `text-${Date.now()}`,
     type: 'text',
@@ -56,7 +56,47 @@ const handleImageUpload = (
   if (!file) return
 
   const url = URL.createObjectURL(file)
-  setImageUrl(url)
+
+  const newImage: EditorObject = {
+    id: `image-${Date.now()}`,
+    type: 'image',
+    imageUrl: url,
+    x: 200,
+    y: 120,
+    width: 300,
+    height: 200,
+    opacity: 1,
+    flipped: false,
+    rotation: 0,
+  }
+
+  setObjects((prev) => [...prev, newImage])
+  setSelectedId(newImage.id)
+
+
+  // 같은 파일을 다시 선택할 수 있도록 초기화
+  e.target.value = ''
+}
+
+// 새 도형 객체 추가
+const handleAddShape = () => {
+  const newShape: EditorObject = {
+    id: `shape-${Date.now()}`,
+    type: 'shape',
+    x: 250,
+    y: 170,
+    width: 200,
+    height: 150,
+    fill: '#d9d9d9',
+    stroke: '#444444',
+    strokeWidth: 2,
+    opacity: 1,
+    cornerRadius: 0,
+    rotation: 0,
+  }
+
+  setObjects((prev) => [...prev, newShape])
+  setSelectedId(newShape.id)
 }
 
   return (
@@ -92,9 +132,10 @@ const handleImageUpload = (
               onChange={handleImageUpload}
             />
         </label>
-          <button onClick={() => setShowShape(true)}>
+
+          <button onClick={handleAddShape}>
             ⬜ 도형
-        </button>
+          </button>
 
           <div className="divider" />
 
@@ -105,54 +146,38 @@ const handleImageUpload = (
           <div className="layer-panel">
             <p className="layer-title">레이어 목록</p>
 
-            {showText && (
+            {objects.map((obj, index) => (
               <div
-                className="layer-item"
-                onClick={() => setSelectedLayer('text')}
+                key={obj.id}
+                className={`layer-item ${
+                  selectedId === obj.id ? 'selected' : ''
+                }`}
+                onClick={() => setSelectedId(obj.id)}
               >
-                📝 텍스트
+                {obj.type === 'text' && `📝 텍스트 ${index + 1}`}
+                {obj.type === 'image' && `🖼️ 이미지 ${index + 1}`}
+                {obj.type === 'shape' && `⬜ 도형 ${index + 1}`}
               </div>
-            )}
+            ))}
 
-            {imageUrl && (
-              <div
-                className="layer-item"
-                onClick={() => setSelectedLayer('image')}
-              >
-                🖼️ 이미지
-              </div>
-            )}
-
-            {showShape && (
-              <div
-                className="layer-item"
-                onClick={() => setSelectedLayer('shape')}
-              >
-                ⬜ 도형
-              </div>
-            )}
-
-            {!showText && !imageUrl && !showShape && (
+            {objects.length === 0 && (
               <p className="layer-empty">
                 객체가 없습니다.
               </p>
             )}
           </div>
         )}
-        </aside>
+                </aside>
 
         {/* 가운데 작업 영역 */}
         <main className="workspace">
           <div className="canvas">
             <EditorCanvas
-              showText={showText}
-              imageUrl={imageUrl}
-              showShape={showShape}
-              selectedLayer={selectedLayer}
               objects={objects}
               selectedId={selectedId}
               onSelectObject={setSelectedId}
-            />
+              onObjectsChange={updateObjects}            
+              />
           </div>
         </main>
 
@@ -163,7 +188,7 @@ const handleImageUpload = (
           <div className="coach-card">
             <h3>디자인 분석</h3>
             <p>
-              {showText
+              {objects.length > 0
                 ? '텍스트 객체가 추가되었습니다.'
                 : '객체를 추가하면 디자인을 분석합니다.'}
             </p>
@@ -172,7 +197,7 @@ const handleImageUpload = (
           <div className="coach-card">
             <h3>현재 상태</h3>
             <p>
-              {showText
+              {objects.length > 0
                 ? '텍스트 객체 1개'
                 : '분석할 객체가 없습니다.'}
             </p>
