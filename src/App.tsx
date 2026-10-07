@@ -94,7 +94,7 @@ const handleImageUpload = (
     rotation: 0,
   }
 
-  setObjects((prev) => [...prev, newImage])
+  updateObjects([...objects, newImage])
   setSelectedId(newImage.id)
 
 
@@ -122,6 +122,261 @@ const handleAddShape = () => {
   updateObjects([...objects, newShape])
   setSelectedId(newShape.id)
 }
+
+// 정렬 상태 분석
+const getAlignmentFeedback = () => {
+  // 비교할 객체가 2개 미만이면 정렬 분석 불가
+  if (objects.length < 2) {
+    return {
+      status: 'info',
+      message: '정렬을 분석하려면 객체가 2개 이상 필요합니다.',
+    }
+  }
+
+  //const ALIGN_THRESHOLD = 10
+
+  for (let i = 0; i < objects.length; i++) {
+    for (let j = i + 1; j < objects.length; j++) {
+      const first = objects[i]
+      const second = objects[j]
+
+      const leftDifference = Math.abs(first.x - second.x)
+
+      if (leftDifference > 0) {
+        return {
+          status: 'warning',
+          message:
+            `정렬 개선 필요: 두 객체의 왼쪽 기준선이 ` +
+            `${Math.round(leftDifference)}px 차이납니다. ` +
+            `같은 기준선으로 정렬해보세요.`,
+        }
+      }
+    }
+  }
+
+  return {
+    status: 'good',
+    message: '현재 감지된 정렬 개선 요소가 없습니다.',
+  }
+}
+
+ // 객체 간 간격 분석
+  const getSpacingFeedback = () => {
+    if (objects.length < 2) {
+      return {
+        status: 'info',
+        message: '간격을 분석하려면 객체가 2개 이상 필요합니다.',
+      }
+    }
+
+    const MIN_SPACING = 20
+
+    for (let i = 0; i < objects.length; i++) {
+      for (let j = i + 1; j < objects.length; j++) {
+        const first = objects[i]
+        const second = objects[j]
+
+        const firstCenterX = first.x + first.width / 2
+        const firstCenterY =
+          first.y + ('height' in first ? first.height / 2 : 0)
+
+        const secondCenterX = second.x + second.width / 2
+        const secondCenterY =
+          second.y + ('height' in second ? second.height / 2 : 0)
+
+        const distance = Math.sqrt(
+          Math.pow(firstCenterX - secondCenterX, 2) +
+          Math.pow(firstCenterY - secondCenterY, 2)
+        )
+
+        if (distance < MIN_SPACING) {
+          return {
+            status: 'warning',
+            message:
+              '간격 개선 필요: 객체 사이의 간격이 너무 가깝습니다.',
+          }
+        }
+      }
+    }
+
+    return {
+      status: 'good',
+      message: '현재 감지된 간격 개선 요소가 없습니다.',
+    }
+  }
+
+  // HEX 색상을 RGB로 변환
+  const hexToRgb = (hex: string) => {
+    const value = hex.replace('#', '')
+
+    if (value.length !== 6) return null
+
+    return {
+      r: parseInt(value.substring(0, 2), 16),
+      g: parseInt(value.substring(2, 4), 16),
+      b: parseInt(value.substring(4, 6), 16),
+    }
+  }
+
+  // 상대 명도 계산
+  const getLuminance = (hex: string) => {
+    const rgb = hexToRgb(hex)
+
+    if (!rgb) return 0
+
+    const values = [rgb.r, rgb.g, rgb.b].map((value) => {
+      const channel = value / 255
+
+      return channel <= 0.04045
+        ? channel / 12.92
+        : Math.pow((channel + 0.055) / 1.055, 2.4)
+    })
+
+    return (
+      0.2126 * values[0] +
+      0.7152 * values[1] +
+      0.0722 * values[2]
+    )
+  }
+
+  // 두 색상의 대비율 계산
+  const getContrastRatio = (
+    firstColor: string,
+    secondColor: string
+  ) => {
+    const firstLuminance = getLuminance(firstColor)
+    const secondLuminance = getLuminance(secondColor)
+
+    const lighter = Math.max(firstLuminance, secondLuminance)
+    const darker = Math.min(firstLuminance, secondLuminance)
+
+    return (lighter + 0.05) / (darker + 0.05)
+  }
+
+  // 텍스트와 배경의 색상 대비 분석
+  const getContrastFeedback = () => {
+    const textObjects = objects.filter(
+      (obj) => obj.type === 'text'
+    )
+
+    if (textObjects.length === 0) {
+      return {
+        status: 'info',
+        message: '색상 대비를 분석할 텍스트가 없습니다.',
+      }
+    }
+
+    // 현재 캔버스 배경은 흰색
+    const backgroundColor = '#ffffff'
+
+    for (const text of textObjects) {
+      if (text.type !== 'text') continue
+
+      const ratio = getContrastRatio(
+        text.fill,
+        backgroundColor
+      )
+
+      if (ratio < 4.5) {
+        return {
+          status: 'warning',
+          message:
+            `색상 대비 개선 필요: 현재 대비율은 ` +
+            `${ratio.toFixed(2)}:1입니다. ` +
+            `글자와 배경의 대비를 높여보세요.`,
+        }
+      }
+    }
+
+    return {
+      status: 'good',
+      message: '현재 텍스트의 색상 대비가 충분합니다.',
+    }
+  }
+
+  // 타이포그래피 분석
+  const getTypographyFeedback = () => {
+    const textObjects = objects.filter(
+      (obj): obj is Extract<EditorObject, { type: 'text' }> =>
+        obj.type === 'text'
+    )
+
+    if (textObjects.length < 2) {
+      return {
+        status: 'info',
+        message: '타이포그래피를 분석하려면 텍스트가 2개 이상 필요합니다.',
+      }
+    }
+
+    // 현재 사용 중인 글꼴 종류
+    const fonts = new Set(
+      textObjects.map((text) => text.fontFamily)
+    )
+
+    if (fonts.size >= 3) {
+      return {
+        status: 'warning',
+        message:
+          `타이포그래피 개선 필요: 현재 ${fonts.size}개의 글꼴이 사용되고 있습니다. ` +
+          `글꼴 종류를 줄여 디자인의 일관성을 높여보세요.`,
+      }
+    }
+
+    return {
+      status: 'good',
+      message: `현재 ${fonts.size}개의 글꼴을 사용하고 있습니다. 글꼴 구성이 일관적입니다.`,
+    }
+  }
+
+// 선택한 객체와 가장 가까운 객체만 자동 정렬
+const handleAutoAlign = () => {
+  if (!selectedId || objects.length < 2) return
+
+  const selectedObject = objects.find(
+    (obj) => obj.id === selectedId
+  )
+
+  if (!selectedObject) return
+
+  // 선택 객체를 제외한 나머지 객체
+  const otherObjects = objects.filter(
+    (obj) => obj.id !== selectedId
+  )
+
+  // x 좌표 기준으로 가장 가까운 객체 찾기
+  const closestObject = otherObjects.reduce((closest, current) => {
+    const closestDifference = Math.abs(
+      closest.x - selectedObject.x
+    )
+
+    const currentDifference = Math.abs(
+      current.x - selectedObject.x
+    )
+
+    return currentDifference < closestDifference
+      ? current
+      : closest
+  })
+
+  // 가장 가까운 객체만 선택 객체의 x 위치로 이동
+  const updatedObjects = objects.map((obj) => {
+    if (obj.id === closestObject.id) {
+      return {
+        ...obj,
+        x: selectedObject.x,
+      }
+    }
+
+    return obj
+  })
+
+  updateObjects(updatedObjects)
+}
+
+const alignmentFeedback = getAlignmentFeedback()
+const spacingFeedback = getSpacingFeedback()
+const contrastFeedback = getContrastFeedback()
+const typographyFeedback = getTypographyFeedback()
 
   return (
     <div className="app">
@@ -219,12 +474,30 @@ const handleAddShape = () => {
           </div>
 
           <div className="coach-card">
+            <h3>간격 분석</h3>
+            <p>{spacingFeedback.message}</p>
+          </div>
+
+          <div className="coach-card">
+            <h3>색상 대비</h3>
+            <p>{contrastFeedback.message}</p>
+          </div>
+
+          <div className="coach-card">
+            <h3>타이포그래피</h3>
+            <p>{typographyFeedback.message}</p>
+          </div>
+
+          <div className="coach-card">
             <h3>현재 상태</h3>
-            <p>
-              {objects.length > 0
-                ? '텍스트 객체 1개'
-                : '분석할 객체가 없습니다.'}
-            </p>
+
+            <p>{alignmentFeedback.message}</p>
+
+            {alignmentFeedback.status === 'warning' && (
+              <button onClick={handleAutoAlign}>
+                자동 정렬
+              </button>
+            )}
           </div>
         </aside>
       </div>
