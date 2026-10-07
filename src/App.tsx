@@ -26,6 +26,30 @@ function App() {
     setFuture([])
   }
 
+  // 실행 취소
+  const handleUndo = () => {
+    if (past.length === 0) return
+
+    const previousObjects = past[past.length - 1]
+
+    setFuture((prev) => [objects, ...prev])
+    setObjects(previousObjects)
+    setPast((prev) => prev.slice(0, -1))
+    setSelectedId(null)
+  }
+
+  // 다시 실행
+  const handleRedo = () => {
+    if (future.length === 0) return
+
+    const nextObjects = future[0]
+
+    setPast((prev) => [...prev, objects])
+    setObjects(nextObjects)
+    setFuture((prev) => prev.slice(1))
+    setSelectedId(null)
+  }
+
   // 새 텍스트 객체 추가
   const handleAddText = () => {
   const newText: EditorObject = {
@@ -44,7 +68,7 @@ function App() {
     rotation: 0,
   }
 
-  setObjects((prev) => [...prev, newText])
+  updateObjects([...objects, newText])
   setSelectedId(newText.id)
 }
 
@@ -95,7 +119,7 @@ const handleAddShape = () => {
     rotation: 0,
   }
 
-  setObjects((prev) => [...prev, newShape])
+  updateObjects([...objects, newShape])
   setSelectedId(newShape.id)
 }
 
@@ -208,8 +232,19 @@ const handleAddShape = () => {
       {/* 하단 */}
       <footer className="bottom-bar">
         <div className="history-buttons">
-          <button>↶ Undo</button>
-          <button>↷ Redo</button>
+          <button
+            onClick={handleUndo}
+            disabled={past.length === 0}
+          >
+            ↶ Undo
+          </button>
+
+          <button
+            onClick={handleRedo}
+            disabled={future.length === 0}
+          >
+            ↷ Redo
+          </button>
         </div>
 
         <div className="zoom">100%</div>
