@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import Konva from 'konva'
 import FloatingToolbar from './FloatingToolbar'
@@ -136,6 +136,8 @@ const updateSelectedShape = (
   return (
     <>
       <Stage
+        id="mini-studio-stage"
+        // 기존 width, height 등 속성 유지
         width={700}
         height={500}
         onMouseDown={(e) => {
@@ -339,6 +341,7 @@ const updateSelectedShape = (
         {selectedId && (
           <Transformer
             ref={transformerRef}
+            name="editor-transformer"
             rotateEnabled={true}
               enabledAnchors={[
                 'top-left',
