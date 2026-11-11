@@ -400,7 +400,17 @@ const updateSelectedShape = (
           onAlignChange={(value) =>
             updateSelectedText({ align: value })
           }
-        />
+
+          onDelete={() => {
+            const updatedObjects = objects.filter(
+              (obj) => obj.id !== selectedTextObject.id
+            )
+
+            onObjectsChange(updatedObjects)
+            onSelectObject(null)
+          }}
+          />
+
       )}
 
       {/* 다중 이미지 선택 시 툴바 표시 */}

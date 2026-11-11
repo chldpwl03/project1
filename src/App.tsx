@@ -52,6 +52,19 @@ function App() {
     setObjects(newObjects)
     setFuture([])
   }
+  // 선택한 객체 삭제
+const handleDeleteSelectedObject = () => {
+  if (!selectedId) return
+
+  const updatedObjects = objects.filter(
+    (obj) => obj.id !== selectedId
+  )
+
+  if (updatedObjects.length === objects.length) return
+
+  updateObjects(updatedObjects)
+  setSelectedId(null)
+}
 
   // 실행 취소
   const handleUndo = () => {
@@ -985,6 +998,17 @@ const designRecommendations = getDesignRecommendations()
                 객체가 없습니다.
               </p>
             )}
+
+            {selectedId && (
+            <button
+              type="button"
+              onClick={handleDeleteSelectedObject}
+              className="delete-tool"
+            >
+              🗑️ 선택한 객체 삭제
+            </button>
+          )}
+          
           </div>
         )}
                 </aside>
@@ -1037,8 +1061,6 @@ const designRecommendations = getDesignRecommendations()
             )}
           </div>
 
-
-          
           <div className="coach-card">
             <h3>간격 분석</h3>
             <p>{spacingFeedback.message}</p>

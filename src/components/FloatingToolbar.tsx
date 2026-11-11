@@ -16,6 +16,7 @@ type FloatingToolbarProps = {
   onBoldChange: () => void
   onItalicChange: () => void
   onAlignChange: (align: 'left' | 'center' | 'right') => void
+  onDelete: () => void
 }
 
 function FloatingToolbar({
@@ -33,6 +34,7 @@ function FloatingToolbar({
   onBoldChange,
   onItalicChange,
   onAlignChange,
+  onDelete,
 }: FloatingToolbarProps) {
   const [position, setPosition] = useState({
   x: window.innerWidth / 2 - 250,
@@ -171,6 +173,16 @@ function FloatingToolbar({
             onChange={(e) => onColorChange(e.target.value)}
           />
         </label>
+
+        {/* 텍스트 삭제 */}
+        <button
+          type="button"
+          className="delete-tool"
+          onClick={onDelete}
+          title="선택한 텍스트 삭제"
+        >
+          🗑️ 삭제
+        </button>
       </div>
     </div>
   )
