@@ -52,6 +52,28 @@ function App() {
     setObjects(newObjects)
     setFuture([])
   }
+
+  const selectedObjectIndex = objects.findIndex(
+    (obj) => obj.id === selectedId
+  )
+
+  const handleMoveLayer = (direction: 'forward' | 'backward') => {
+    if (selectedObjectIndex === -1) return
+
+    const nextIndex =
+      selectedObjectIndex + (direction === 'forward' ? 1 : -1)
+
+    if (nextIndex < 0 || nextIndex >= objects.length) return
+
+    const newObjects = [...objects]
+    const currentObject = newObjects[selectedObjectIndex]
+
+    newObjects[selectedObjectIndex] = newObjects[nextIndex]
+    newObjects[nextIndex] = currentObject
+
+    updateObjects(newObjects)
+  }
+
   // 선택한 객체 삭제
 const handleDeleteSelectedObject = () => {
   if (!selectedId) return
@@ -154,45 +176,130 @@ const handleExportPNG = () => {
     URL.revokeObjectURL(url)
   }
 
-  // 저장한 JSON 파일 불러오기
-  const handleLoadDesign = async (
+   const handleLoadDesign = async (
     e: ChangeEvent<HTMLInputElement>
   ) => {
-    const file = e.target.files?.[0]
+    const input = e.currentTarget
+    const file = input.files?.[0]
+
     if (!file) return
+
+    const isRecord = (
+      value: unknown
+    ): value is Record<string, unknown> =>
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value)
+
+    const isNumber = (value: unknown): value is number =>
+      typeof value === 'number' && Number.isFinite(value)
+
+    const isPositive = (value: unknown): value is number =>
+      isNumber(value) && value > 0
+
+    const isNonNegative = (value: unknown): value is number =>
+      isNumber(value) && value >= 0
+
+    const isColor = (value: unknown): value is string =>
+      typeof value === 'string' &&
+      /^#[0-9a-fA-F]{6}$/.test(value)
+
+    const isOpacity = (value: unknown): value is number =>
+      isNumber(value) && value >= 0 && value <= 1
+
+    const isEditorObject = (value: unknown): value is EditorObject => {
+      if (!isRecord(value)) return false
+
+      if (
+        typeof value.id !== 'string' ||
+        !/^[a-zA-Z0-9_-]+$/.test(value.id) ||
+        !isNumber(value.x) ||
+        !isNumber(value.y) ||
+        !isPositive(value.width) ||
+        !isNumber(value.rotation)
+      ) {
+        return false
+      }
+
+      if (value.type === 'text') {
+        return (
+          typeof value.text === 'string' &&
+          isPositive(value.fontSize) &&
+          typeof value.fontFamily === 'string' &&
+          value.fontFamily.trim().length > 0 &&
+          isColor(value.fill) &&
+          typeof value.bold === 'boolean' &&
+          typeof value.italic === 'boolean' &&
+          (
+            value.align === 'left' ||
+            value.align === 'center' ||
+            value.align === 'right'
+          )
+        )
+      }
+
+      if (value.type === 'image') {
+        return (
+          typeof value.imageUrl === 'string' &&
+          /^data:image\/[^;,]+;base64,[A-Za-z0-9+/]+={0,2}$/.test(
+            value.imageUrl
+          ) &&
+          isPositive(value.height) &&
+          isOpacity(value.opacity) &&
+          typeof value.flipped === 'boolean'
+        )
+      }
+
+      if (value.type === 'shape') {
+        return (
+          isPositive(value.height) &&
+          isColor(value.fill) &&
+          isColor(value.stroke) &&
+          isNonNegative(value.strokeWidth) &&
+          isOpacity(value.opacity) &&
+          isNonNegative(value.cornerRadius)
+        )
+      }
+
+      return false
+    }
 
     try {
       const content = await file.text()
-      const data: unknown = JSON.parse(content)
+      let data: unknown
 
-      if (
-        typeof data !== 'object' ||
-        data === null ||
-        !('objects' in data) ||
-        !Array.isArray(data.objects)
-      ) {
-        throw new Error('올바른 디자인 파일이 아닙니다.')
+      try {
+        data = JSON.parse(content)
+      } catch {
+        throw new Error('JSON 형식이 올바르지 않습니다.')
       }
 
-      const loadedObjects = data.objects as EditorObject[]
+      if (!isRecord(data) || !Array.isArray(data.objects)) {
+        throw new Error('올바른 Mini Studio 디자인 파일이 아닙니다.')
+      }
 
-      // 객체 기본 구조 확인
-      const isValid = loadedObjects.every(
-        (obj) =>
-          obj !== null &&
-          typeof obj === 'object' &&
-          typeof obj.id === 'string' &&
-          ['text', 'image', 'shape'].includes(obj.type) &&
-          typeof obj.x === 'number' &&
-          Number.isFinite(obj.x) &&
-          typeof obj.y === 'number' &&
-          Number.isFinite(obj.y) &&
-          typeof obj.width === 'number' &&
-          Number.isFinite(obj.width)
-      )
+      if (data.version !== 1) {
+        throw new Error('지원하지 않는 디자인 파일 버전입니다.')
+      }
 
-      if (!isValid) {
-        throw new Error('디자인 객체 데이터가 올바르지 않습니다.')
+      const loadedObjects: EditorObject[] = []
+      const usedIds = new Set<string>()
+
+      for (const [index, obj] of data.objects.entries()) {
+        if (!isEditorObject(obj)) {
+          throw new Error(
+            `${index + 1}번째 객체의 필수 항목이나 값이 올바르지 않습니다.`
+          )
+        }
+
+        if (usedIds.has(obj.id)) {
+          throw new Error(
+            `${index + 1}번째 객체의 ID가 다른 객체와 중복됩니다.`
+          )
+        }
+
+        usedIds.add(obj.id)
+        loadedObjects.push(obj)
       }
 
       updateObjects(loadedObjects)
@@ -206,7 +313,7 @@ const handleExportPNG = () => {
           : '파일을 불러오지 못했습니다.'
       )
     } finally {
-      e.target.value = ''
+      input.value = ''
     }
   }
 
@@ -975,11 +1082,31 @@ const designRecommendations = getDesignRecommendations()
           <button onClick={() => setShowLayers(!showLayers)}>
            📚 레이어
           </button>
+
           {showLayers && (
           <div className="layer-panel">
             <p className="layer-title">레이어 목록</p>
+            <div className="layer-order-buttons">
+              <button
+                type="button"
+                onClick={() => handleMoveLayer('forward')}
+                disabled={
+                  selectedObjectIndex === -1 ||
+                  selectedObjectIndex === objects.length - 1
+                }
+              >
+                ↑ 앞으로 보내기
+              </button>
 
-            {objects.map((obj, index) => (
+              <button
+                type="button"
+                onClick={() => handleMoveLayer('backward')}
+                disabled={selectedObjectIndex <= 0}
+              >
+                ↓ 뒤로 보내기
+              </button>
+            </div>
+            {[...objects].reverse().map((obj, index) => (
               <div
                 key={obj.id}
                 className={`layer-item ${

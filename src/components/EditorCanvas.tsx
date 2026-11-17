@@ -149,10 +149,8 @@ const updateSelectedShape = (
         <Layer>
 
           {/* 새로운 다중 텍스트 객체 */}
-          {objects
-            .filter((obj) => obj.type === 'text')
-            .map((obj) => {
-              if (obj.type !== 'text') return null
+          {objects.map((obj) => {
+          if (obj.type === 'text') {
 
               let objectFontStyle = 'normal'
 
@@ -228,13 +226,9 @@ const updateSelectedShape = (
                   onTap={() => onSelectObject(obj.id)}
                 />
               )
-            })}
+              }
 
-            {/* 새로운 다중 이미지 객체 */}
-          {objects
-            .filter((obj) => obj.type === 'image')
-            .map((obj) => {
-              if (obj.type !== 'image') return null
+               if (obj.type === 'image') {
 
               return (
                 <CanvasImage
@@ -259,13 +253,9 @@ const updateSelectedShape = (
                   }}
                 />
               )
-            })}
+              }
 
-            {/* 새로운 다중 도형 객체 */}
-            {objects
-              .filter((obj) => obj.type === 'shape')
-              .map((obj) => {
-                if (obj.type !== 'shape') return null
+                if (obj.type === 'shape') {
 
                 return (
                   <Rect
@@ -333,9 +323,12 @@ const updateSelectedShape = (
 
                       onObjectsChange(updatedObjects)
                     }}
-                  />
-                )
-              })}
+                          />
+                        )
+          }
+
+          return null
+        })}
 
         {/* 선택 테두리 */}
         {selectedId && (
