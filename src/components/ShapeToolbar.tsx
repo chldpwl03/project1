@@ -1,11 +1,12 @@
 import { useState, type MouseEvent as ReactMouseEvent } from 'react'
 
 type ShapeToolbarProps = {
+    // 선택한 도형에서 모서리 둥글기를 조절할 수 있는지 표시
+  showCornerRadius: boolean
   fillColor: string
   strokeColor: string
   opacity: number
   cornerRadius: number
-
   onFillColorChange: (color: string) => void
   onStrokeColorChange: (color: string) => void
   onOpacityChange: (opacity: number) => void
@@ -14,6 +15,7 @@ type ShapeToolbarProps = {
 }
 
 function ShapeToolbar({
+  showCornerRadius,
   fillColor,
   strokeColor,
   opacity,
@@ -73,8 +75,10 @@ function ShapeToolbar({
       >
         {dragging ? '이동 중...' : '⋮⋮ 드래그해서 이동'}
       </div>
+      
 
       <div className="shape-toolbar-controls">
+        
         <span>채우기</span>
 
         <input
@@ -106,18 +110,26 @@ function ShapeToolbar({
 
         <span>{Math.round(opacity * 100)}%</span>
 
-        <span>둥글기</span>
-
-        <input
-          type="range"
-          min="0"
-          max="50"
-          step="5"
-          value={cornerRadius}
-          onChange={(e) =>
-            onCornerRadiusChange(Number(e.target.value))
-          }
-        />
+                {/* 사각형을 선택했을 때만 둥글기 라벨과 슬라이더를 함께 표시 */}
+        {showCornerRadius && (
+          <>
+                    {/* 사각형을 선택했을 때만 둥글기 라벨과 슬라이더를 함께 표시 */}
+        {showCornerRadius && (
+          <>
+            <span>둥글기</span>
+            <input
+              type="range"
+              aria-label="사각형 모서리 둥글기"
+              min="0"
+              max="50"
+              step="5"
+              value={cornerRadius}
+              onChange={(e) => onCornerRadiusChange(Number(e.target.value))}
+            />
+          </>
+        )}
+          </>
+        )}
 
         <button
           className="delete-shape-button"

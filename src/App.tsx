@@ -30,7 +30,16 @@ const getTextVisualWidth = (
   return Math.min(obj.width, measuredWidth)
 }
 
+// 레이어 목록에 표시할 도형별 아이콘과 이름
+const shapeLabels = {
+  rectangle: '▭ 사각형',
+  ellipse: '⬭ 타원',
+  triangle: '△ 삼각형',
+}
+
 function App() {
+  // 왼쪽 도형 버튼 아래의 선택 패널이 열려 있는지 관리
+  const [showShapePanel, setShowShapePanel] = useState(false)
 
   // 레이어 패널 열기/닫기
   const [showLayers, setShowLayers] = useState(false)
@@ -250,8 +259,18 @@ const handleExportPNG = () => {
         )
       }
 
-      if (value.type === 'shape') {
+        if (value.type === 'shape') {
+        // 이전 버전에서 저장한 도형은 shapeType이 없으므로 불러오기를 허용
+        // 값이 있으면 편집기에서 지원하는 세 가지 모양인지 확인
+        const isValidShapeType =
+          value.shapeType === undefined ||
+          value.shapeType === 'rectangle' ||
+          value.shapeType === 'ellipse' ||
+          value.shapeType === 'triangle'
+
+        // 모양과 기존 도형 속성이 모두 유효해야 불러오기
         return (
+          isValidShapeType &&
           isPositive(value.height) &&
           isColor(value.fill) &&
           isColor(value.stroke) &&
@@ -405,25 +424,36 @@ const handleExportPNG = () => {
 
 
 // 새 도형 객체 추가
-const handleAddShape = () => {
-  const newShape: EditorObject = {
-    id: `shape-${Date.now()}`,
-    type: 'shape',
-    x: 250,
-    y: 170,
-    width: 200,
-    height: 150,
-    fill: '#d9d9d9',
-    stroke: '#444444',
-    strokeWidth: 2,
-    opacity: 1,
-    cornerRadius: 0,
-    rotation: 0,
-  }
+  // 팝업에서 고른 모양으로 새 도형을 생성
+  const handleAddShape = (shapeType: 'rectangle' | 'ellipse' | 'triangle') => {
+    const newShape: EditorObject = {
+      id: `shape-${Date.now()}`,
+      type: 'shape', // 텍스트·이미지와 구분하는 객체 종류
+      shapeType,     // 사용자가 고른 모양(사각형·타원·삼각형)
 
-  updateObjects([...objects, newShape])
-  setSelectedId(newShape.id)
-}
+      // 캔버스에 처음 나타날 위치와 크기
+      x: 250,
+      y: 170,
+      width: 200,
+      height: 150,
+
+      // 채우기 색, 테두리, 투명도 등 기본 스타일
+      fill: '#d9d9d9',
+      stroke: '#444444',
+      strokeWidth: 2,
+      opacity: 1,
+      cornerRadius: 0,
+      rotation: 0,
+    }
+
+    // 도형 추가를 실행 취소할 수 있도록 기존 변경 기록 함수를 사용
+    updateObjects([...objects, newShape])
+
+    // 새 도형을 바로 편집할 수 있도록 선택하고 팝업을 닫음
+    setSelectedId(newShape.id)
+        // 도형을 캔버스에 추가한 뒤 선택 패널을 접음
+    setShowShapePanel(false)
+  }
 
 
 
@@ -1073,9 +1103,35 @@ const designRecommendations = getDesignRecommendations()
             />
         </label>
 
-          <button onClick={handleAddShape}>
+          {/* 도형 버튼을 누를 때마다 바로 아래의 패널을 펼치거나 접음 */}
+          <button
+            type="button"
+            aria-expanded={showShapePanel}
+            aria-controls="shape-panel"
+            onClick={() => setShowShapePanel((isOpen) => !isOpen)}
+          >
             ⬜ 도형
           </button>
+
+          {/* 모양을 클릭하면 해당 도형 하나를 캔버스에 추가 */}
+          {showShapePanel && (
+            <div id="shape-panel" className="shape-panel" role="group" aria-label="도형 선택">
+              <button type="button" onClick={() => handleAddShape('rectangle')}>
+                <span aria-hidden="true">▭</span>
+                사각형
+              </button>
+
+              <button type="button" onClick={() => handleAddShape('ellipse')}>
+                <span aria-hidden="true">⬭</span>
+                타원
+              </button>
+
+              <button type="button" onClick={() => handleAddShape('triangle')}>
+                <span aria-hidden="true">△</span>
+                삼각형
+              </button>
+            </div>
+          )}
 
           <div className="divider" />
 
@@ -1116,7 +1172,9 @@ const designRecommendations = getDesignRecommendations()
               >
                 {obj.type === 'text' && `📝 텍스트 ${index + 1}`}
                 {obj.type === 'image' && `🖼️ 이미지 ${index + 1}`}
-                {obj.type === 'shape' && `⬜ 도형 ${index + 1}`}
+                {/* 이전에 저장한 도형은 사각형으로 표시하고 기존 레이어 번호를 유지 */}
+                {obj.type === 'shape' &&
+                  `${shapeLabels[obj.shapeType ?? 'rectangle']} ${index + 1}`}
               </div>
             ))}
 

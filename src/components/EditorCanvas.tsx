@@ -270,6 +270,36 @@ const updateSelectedShape = (
                     strokeWidth={obj.strokeWidth}
                     opacity={obj.opacity}
                     cornerRadius={obj.cornerRadius}
+                                        sceneFunc={
+                      // 타원과 삼각형은 직접 그리고, 사각형은 기존 Rect가 그리도록 함
+                      obj.shapeType === 'ellipse' || obj.shapeType === 'triangle'
+                        ? (context, shape) => {
+                            // 크기를 조절한 뒤에도 현재 너비와 높이에 맞춰 그림
+                            const width = shape.width()
+                            const height = shape.height()
+
+                            context.beginPath()
+
+                            if (obj.shapeType === 'ellipse') {
+                              // 중심을 도형 가운데로 옮기고 원을 가로·세로 크기에 맞춰 늘림
+                              context.save()
+                              context.translate(width / 2, height / 2)
+                              context.scale(width / 2, height / 2)
+                              context.arc(0, 0, 1, 0, Math.PI * 2, false)
+                              context.restore()
+                            } else {
+                              // 위쪽 중앙 → 오른쪽 아래 → 왼쪽 아래 순서로 삼각형을 그림
+                              context.moveTo(width / 2, 0)
+                              context.lineTo(width, height)
+                              context.lineTo(0, height)
+                            }
+
+                            // 도형의 경로를 닫고 툴바에서 설정한 채우기 색과 테두리를 적용
+                            context.closePath()
+                            context.fillStrokeShape(shape)
+                          }
+                        : undefined
+                    }
                     rotation={obj.rotation}
                     draggable
 
@@ -441,6 +471,7 @@ const updateSelectedShape = (
       {/* 다중 도형 선택 시 툴바 표시 */}
       {selectedShapeObject && (
         <ShapeToolbar
+          showCornerRadius={(selectedShapeObject.shapeType ?? 'rectangle') === 'rectangle'}
           fillColor={selectedShapeObject.fill}
           strokeColor={selectedShapeObject.stroke}
           opacity={selectedShapeObject.opacity}

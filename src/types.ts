@@ -32,6 +32,7 @@ export type ImageObject = {
 export type ShapeObject = {
   id: string
   type: 'shape'
+  shapeType?: 'rectangle' | 'ellipse' | 'triangle'
   x: number
   y: number
   width: number

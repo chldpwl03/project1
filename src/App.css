@@ -479,3 +479,40 @@ button {
 .image-toolbar-controls .delete-image-button {
   color: #d93025;
 }
+/* 왼쪽 도형 버튼 바로 아래에 선택지 세 개를 한 줄로 배치 */
+.sidebar .shape-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: -4px 0 8px;
+  padding: 5px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+/* 각 버튼 안에서 도형 아이콘은 위에, 이름은 아래에 표시 */
+.sidebar .shape-panel button {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  height: 42px;
+  margin: 0;
+  padding: 0;
+  background: white;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* 작은 패널에서도 모양을 알아보기 쉽게 아이콘 크기를 조절 */
+.sidebar .shape-panel button span {
+  font-size: 19px;
+  line-height: 1;
+}
+
+/* 마우스나 키보드로 가리킨 도형을 강조 */
+.sidebar .shape-panel button:hover,
+.sidebar .shape-panel button:focus-visible {
+  background: #eaeaea;
+}
