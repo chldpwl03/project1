@@ -31,6 +31,7 @@ export type ImageObject = {
 
 export type ShapeObject = {
   id: string
+  layerName?: string
   type: 'shape'
   shapeType?: 'rectangle' | 'ellipse' | 'triangle'
   x: number
@@ -45,7 +46,7 @@ export type ShapeObject = {
   rotation: number
 }
 
-export type EditorObject =
-  | TextObject
-  | ImageObject
-  | ShapeObject
+// 레이어 목록에 표시할 사용자 지정 이름
+export type EditorObject = (TextObject | ImageObject | ShapeObject) & {
+  layerName?: string
+}

@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import './App.css'
 import EditorCanvas from './components/EditorCanvas'
+import LayerItem from './components/LayerItem'
 import type { EditorObject } from './types'
 import Konva from 'konva'
 
@@ -37,6 +38,16 @@ const shapeLabels = {
   triangle: '△ 삼각형',
 }
 
+// 사용자 지정 이름 또는 기본 레이어 이름 표시
+function getLayerName(obj: EditorObject, number: number) {
+  if (obj.layerName?.trim()) return obj.layerName
+
+  if (obj.type === 'text') return `📝 텍스트 ${number}`
+  if (obj.type === 'image') return `🖼️ 이미지 ${number}`
+
+  return `${shapeLabels[obj.shapeType ?? 'rectangle']} ${number}`
+}
+
 function App() {
   // 왼쪽 도형 버튼 아래의 선택 패널이 열려 있는지 관리
   const [showShapePanel, setShowShapePanel] = useState(false)
@@ -60,6 +71,15 @@ function App() {
     setPast((prev) => [...prev, objects])
     setObjects(newObjects)
     setFuture([])
+  }
+
+  // 해당 객체의 레이어 이름 변경
+  const handleRenameLayer = (id: string, layerName: string) => {
+    const updatedObjects = objects.map((obj) =>
+      obj.id === id ? { ...obj, layerName } : obj
+    )
+
+    updateObjects(updatedObjects)
   }
 
   const selectedObjectIndex = objects.findIndex(
@@ -219,6 +239,11 @@ const handleExportPNG = () => {
     const isEditorObject = (value: unknown): value is EditorObject => {
       if (!isRecord(value)) return false
 
+            // 사용자 지정 레이어 이름 검사
+      if (value.layerName !== undefined && typeof value.layerName !== 'string') {
+        return false
+      }
+
       if (
         typeof value.id !== 'string' ||
         !/^[a-zA-Z0-9_-]+$/.test(value.id) ||
@@ -247,12 +272,10 @@ const handleExportPNG = () => {
         )
       }
 
-      if (value.type === 'image') {
+            if (value.type === 'image') {
         return (
           typeof value.imageUrl === 'string' &&
-          /^data:image\/[^;,]+;base64,[A-Za-z0-9+/]+={0,2}$/.test(
-            value.imageUrl
-          ) &&
+          /^data:image\/[^;,]+;base64,[A-Za-z0-9+/]+={0,2}$/.test(value.imageUrl) &&
           isPositive(value.height) &&
           isOpacity(value.opacity) &&
           typeof value.flipped === 'boolean'
@@ -639,7 +662,7 @@ const getAlignmentFeedback = () => {
   }
 
 
-  // 객체 간 간격 분석 (경계 기준)
+              // 객체 간 간격 분석
   const getSpacingFeedback = () => {
     if (objects.length < 2) {
       return {
@@ -661,8 +684,7 @@ const getAlignmentFeedback = () => {
           return {
             status: 'warning',
             message:
-              `간격 개선 제안: 객체 간 거리가 ` +
-              `${Math.round(distance)}px입니다. ` +
+              `간격 개선 제안: 객체 간 거리가 ${Math.round(distance)}px입니다. ` +
               `최소 ${MIN_SPACING}px 간격을 권장합니다.`,
           }
         }
@@ -675,11 +697,9 @@ const getAlignmentFeedback = () => {
     }
   }
 
-
   // HEX 색상을 RGB로 변환
   const hexToRgb = (hex: string) => {
     const value = hex.replace('#', '')
-
     if (value.length !== 6) return null
 
     return {
@@ -692,7 +712,6 @@ const getAlignmentFeedback = () => {
   // 상대 명도 계산
   const getLuminance = (hex: string) => {
     const rgb = hexToRgb(hex)
-
     if (!rgb) return 0
 
     const values = [rgb.r, rgb.g, rgb.b].map((value) => {
@@ -703,29 +722,20 @@ const getAlignmentFeedback = () => {
         : Math.pow((channel + 0.055) / 1.055, 2.4)
     })
 
-    return (
-      0.2126 * values[0] +
-      0.7152 * values[1] +
-      0.0722 * values[2]
-    )
+    return 0.2126 * values[0] + 0.7152 * values[1] + 0.0722 * values[2]
   }
 
   // 두 색상의 대비율 계산
-  const getContrastRatio = (
-    firstColor: string,
-    secondColor: string
-  ) => {
+  const getContrastRatio = (firstColor: string, secondColor: string) => {
     const firstLuminance = getLuminance(firstColor)
     const secondLuminance = getLuminance(secondColor)
-
     const lighter = Math.max(firstLuminance, secondLuminance)
     const darker = Math.min(firstLuminance, secondLuminance)
 
     return (lighter + 0.05) / (darker + 0.05)
   }
 
- 
-  // 텍스트와 실제 배경의 색상 대비 분석
+  // 텍스트와 배경의 색상 대비 분석
   const getContrastFeedback = () => {
     const textObjects = objects.filter(
       (obj): obj is Extract<EditorObject, { type: 'text' }> =>
@@ -744,22 +754,15 @@ const getAlignmentFeedback = () => {
 
     for (const text of textObjects) {
       let backgroundColor = DEFAULT_BACKGROUND
+      const textIndex = objects.findIndex((obj) => obj.id === text.id)
+      const centerX = text.x + text.width / 2
+      const centerY = text.y + text.fontSize * 0.6
 
-      // 텍스트보다 아래 레이어에 있는 도형 검색
-      const textIndex = objects.findIndex(
-        (obj) => obj.id === text.id
-      )
-
+      // 텍스트 중심점 아래의 도형 검색
       for (let i = textIndex - 1; i >= 0; i--) {
         const obj = objects[i]
-
         if (obj.type !== 'shape') continue
 
-        // 텍스트 중심점 계산
-        const centerX = text.x + text.width / 2
-        const centerY = text.y + text.fontSize * 0.6
-
-        // 텍스트 중심점이 도형 내부에 있는지 확인
         const isInside =
           centerX >= obj.x &&
           centerX <= obj.x + obj.width &&
@@ -772,17 +775,13 @@ const getAlignmentFeedback = () => {
         }
       }
 
-      const ratio = getContrastRatio(
-        text.fill,
-        backgroundColor
-      )
+      const ratio = getContrastRatio(text.fill, backgroundColor)
 
       if (ratio < MIN_CONTRAST) {
         return {
           status: 'warning',
           message:
-            `색상 대비 개선 제안: 텍스트와 배경의 대비율이 ` +
-            `${ratio.toFixed(2)}:1입니다. ` +
+            `색상 대비 개선 제안: 텍스트와 배경의 대비율이 ${ratio.toFixed(2)}:1입니다. ` +
             `최소 ${MIN_CONTRAST}:1 이상이 되도록 색상을 조정해보세요.`,
         }
       }
@@ -1064,139 +1063,178 @@ const designRecommendations = getDesignRecommendations()
 
       <div className="editor">
         {/* 왼쪽 메뉴 */}
-        <aside className="sidebar">
+                <aside className="sidebar editor-sidebar">
           <h2>도구</h2>
 
-          
-      <button onClick={handleSaveDesign}>
-        💾 저장하기
-      </button>
-
-      <button onClick={() => loadInputRef.current?.click()}>
-        📂 불러오기
-      </button>
-
-      <input
-        ref={loadInputRef}
-        type="file"
-        accept=".json,application/json"
-        onChange={handleLoadDesign}
-        style={{ display: 'none' }}
-      />
-
-
-          <div className="divider" />
-
-          <p className="menu-title">객체 추가</p>
-
-          <button onClick={handleAddText}>
-            📝 텍스트
-          </button>
-
-          <label className="image-upload-button">
-            🖼️ 이미지
-
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-            />
-        </label>
-
-          {/* 도형 버튼을 누를 때마다 바로 아래의 패널을 펼치거나 접음 */}
-          <button
-            type="button"
-            aria-expanded={showShapePanel}
-            aria-controls="shape-panel"
-            onClick={() => setShowShapePanel((isOpen) => !isOpen)}
-          >
-            ⬜ 도형
-          </button>
-
-          {/* 모양을 클릭하면 해당 도형 하나를 캔버스에 추가 */}
-          {showShapePanel && (
-            <div id="shape-panel" className="shape-panel" role="group" aria-label="도형 선택">
-              <button type="button" onClick={() => handleAddShape('rectangle')}>
-                <span aria-hidden="true">▭</span>
-                사각형
-              </button>
-
-              <button type="button" onClick={() => handleAddShape('ellipse')}>
-                <span aria-hidden="true">⬭</span>
-                타원
-              </button>
-
-              <button type="button" onClick={() => handleAddShape('triangle')}>
-                <span aria-hidden="true">△</span>
-                삼각형
-              </button>
-            </div>
-          )}
-
-          <div className="divider" />
-
-          <button onClick={() => setShowLayers(!showLayers)}>
-           📚 레이어
-          </button>
-
-          {showLayers && (
-          <div className="layer-panel">
-            <p className="layer-title">레이어 목록</p>
-            <div className="layer-order-buttons">
-              <button
-                type="button"
-                onClick={() => handleMoveLayer('forward')}
-                disabled={
-                  selectedObjectIndex === -1 ||
-                  selectedObjectIndex === objects.length - 1
-                }
-              >
-                ↑ 앞으로 보내기
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleMoveLayer('backward')}
-                disabled={selectedObjectIndex <= 0}
-              >
-                ↓ 뒤로 보내기
-              </button>
-            </div>
-            {[...objects].reverse().map((obj, index) => (
-              <div
-                key={obj.id}
-                className={`layer-item ${
-                  selectedId === obj.id ? 'selected' : ''
-                }`}
-                onClick={() => setSelectedId(obj.id)}
-              >
-                {obj.type === 'text' && `📝 텍스트 ${index + 1}`}
-                {obj.type === 'image' && `🖼️ 이미지 ${index + 1}`}
-                {/* 이전에 저장한 도형은 사각형으로 표시하고 기존 레이어 번호를 유지 */}
-                {obj.type === 'shape' &&
-                  `${shapeLabels[obj.shapeType ?? 'rectangle']} ${index + 1}`}
-              </div>
-            ))}
-
-            {objects.length === 0 && (
-              <p className="layer-empty">
-                객체가 없습니다.
-              </p>
-            )}
-
-            {selectedId && (
+          {/* 디자인 저장 및 불러오기 */}
+          <div className="sidebar-section" role="group" aria-label="파일">
             <button
               type="button"
-              onClick={handleDeleteSelectedObject}
-              className="delete-tool"
+              className="sidebar-tool"
+              title="현재 디자인을 JSON 파일로 저장"
+              onClick={handleSaveDesign}
             >
-              🗑️ 선택한 객체 삭제
+              💾 저장하기
             </button>
-          )}
-          
+
+            <button
+              type="button"
+              className="sidebar-tool"
+              title="저장한 디자인 파일 불러오기"
+              onClick={() => loadInputRef.current?.click()}
+            >
+              📂 불러오기
+            </button>
+
+            <input
+              ref={loadInputRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={handleLoadDesign}
+              hidden
+            />
           </div>
-        )}
-                </aside>
+
+          {/* 객체 추가 */}
+          <div className="sidebar-section" role="group" aria-label="객체 추가">
+            <p className="sidebar-section-title">객체 추가</p>
+
+            <button
+              type="button"
+              className="sidebar-tool"
+              title="캔버스에 텍스트 추가"
+              onClick={handleAddText}
+            >
+              📝 텍스트
+            </button>
+
+            <label className="sidebar-tool sidebar-upload" title="이미지 파일 추가">
+              🖼️ 이미지
+              <input
+                type="file"
+                accept="image/*"
+                aria-label="이미지 파일 추가"
+                onChange={handleImageUpload}
+              />
+            </label>
+
+            <button
+              type="button"
+              className="sidebar-tool sidebar-toggle"
+              aria-expanded={showShapePanel}
+              aria-controls="shape-panel"
+              title={showShapePanel ? '도형 목록 접기' : '도형 목록 펼치기'}
+              onClick={() => setShowShapePanel((isOpen) => !isOpen)}
+            >
+              <span>⬜ 도형</span>
+              <span className="sidebar-chevron" aria-hidden="true">⌄</span>
+            </button>
+
+            {/* 도형 선택 패널 */}
+            {showShapePanel && (
+              <div
+                id="shape-panel"
+                className="shape-panel"
+                role="group"
+                aria-label="도형 선택"
+              >
+                <button
+                  type="button"
+                  title="사각형 추가"
+                  onClick={() => handleAddShape('rectangle')}
+                >
+                  <span aria-hidden="true">▭</span> 사각형
+                </button>
+
+                <button
+                  type="button"
+                  title="타원 추가"
+                  onClick={() => handleAddShape('ellipse')}
+                >
+                  <span aria-hidden="true">⬭</span> 타원
+                </button>
+
+                <button
+                  type="button"
+                  title="삼각형 추가"
+                  onClick={() => handleAddShape('triangle')}
+                >
+                  <span aria-hidden="true">△</span> 삼각형
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 레이어 관리 */}
+          <div className="sidebar-section" role="group" aria-label="레이어 관리">
+            <button
+              type="button"
+              className="sidebar-tool sidebar-toggle"
+              aria-expanded={showLayers}
+              aria-controls="layer-panel"
+              title={showLayers ? '레이어 목록 접기' : '레이어 목록 펼치기'}
+              onClick={() => setShowLayers((isOpen) => !isOpen)}
+            >
+              <span>📚 레이어</span>
+              <span className="sidebar-chevron" aria-hidden="true">⌄</span>
+            </button>
+
+            {showLayers && (
+              <div id="layer-panel" className="layer-panel">
+                <p className="layer-title">레이어 목록</p>
+
+                <div className="layer-order-buttons">
+                  <button
+                    type="button"
+                    title="선택한 객체를 한 단계 앞으로 이동"
+                    onClick={() => handleMoveLayer('forward')}
+                    disabled={
+                      selectedObjectIndex === -1 ||
+                      selectedObjectIndex === objects.length - 1
+                    }
+                  >
+                    ↑ 앞으로 보내기
+                  </button>
+
+                  <button
+                    type="button"
+                    title="선택한 객체를 한 단계 뒤로 이동"
+                    onClick={() => handleMoveLayer('backward')}
+                    disabled={selectedObjectIndex <= 0}
+                  >
+                    ↓ 뒤로 보내기
+                  </button>
+                </div>
+
+                {/* 앞쪽 레이어부터 표시 */}
+                {[...objects].reverse().map((obj, index) => (
+                  <LayerItem
+                    key={obj.id}
+                    name={getLayerName(obj, index + 1)}
+                    selected={selectedId === obj.id}
+                    onSelect={() => setSelectedId(obj.id)}
+                    onRename={(name) => handleRenameLayer(obj.id, name)}
+                  />
+                ))}
+
+                {objects.length === 0 && (
+                  <p className="layer-empty">객체가 없습니다.</p>
+                )}
+
+                {selectedId && (
+                  <button
+                    type="button"
+                    className="delete-tool"
+                    title="캔버스에서 선택한 객체 삭제"
+                    onClick={handleDeleteSelectedObject}
+                  >
+                    🗑️ 선택한 객체 삭제
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </aside>
 
         {/* 가운데 작업 영역 */}
         <main className="workspace">
@@ -1225,45 +1263,63 @@ const designRecommendations = getDesignRecommendations()
           </div>
 
           
-          <div className="coach-card">
-            <h3>디자인 분석</h3>
+          {/* 캔버스 객체 수 */}
+          <div className="coach-card coach-summary">
+            <div className="coach-summary-heading">
+              <h3>디자인 분석</h3>
+              <span>총 {objects.length}개</span>
+            </div>
 
             {objects.length === 0 ? (
               <p>객체를 추가하면 디자인을 분석합니다.</p>
             ) : (
-              <>
-                <p>전체 객체: {objects.length}개</p>
-                <p>
-                  텍스트: {objects.filter((obj) => obj.type === 'text').length}개
-                </p>
-                <p>
-                  이미지: {objects.filter((obj) => obj.type === 'image').length}개
-                </p>
-                <p>
-                  도형: {objects.filter((obj) => obj.type === 'shape').length}개
-                </p>
-              </>
+              <dl className="coach-counts">
+                <div>
+                  <dt>텍스트</dt>
+                  <dd>{objects.filter((obj) => obj.type === 'text').length}</dd>
+                </div>
+                <div>
+                  <dt>이미지</dt>
+                  <dd>{objects.filter((obj) => obj.type === 'image').length}</dd>
+                </div>
+                <div>
+                  <dt>도형</dt>
+                  <dd>{objects.filter((obj) => obj.type === 'shape').length}</dd>
+                </div>
+              </dl>
             )}
           </div>
 
-          <div className="coach-card">
+
+          {/* 간격 분석 카드 */}
+          <div className="coach-card" data-status={spacingFeedback.status}>
             <h3>간격 분석</h3>
             <p>{spacingFeedback.message}</p>
 
             {spacingFeedback.status === 'warning' && (
-              <button onClick={handleAutoSpacing}>
+              <button
+                type="button"
+                className="coach-action"
+                title="객체 사이의 간격 조정"
+                onClick={handleAutoSpacing}
+              >
                 간격 자동 개선
               </button>
             )}
           </div>
 
-
-          <div className="coach-card">
+          {/* 색상 대비 카드 */}
+          <div className="coach-card" data-status={contrastFeedback.status}>
             <h3>색상 대비</h3>
             <p>{contrastFeedback.message}</p>
 
             {contrastFeedback.status === 'warning' && (
-              <button onClick={handleAutoContrast}>
+              <button
+                type="button"
+                className="coach-action"
+                title="텍스트와 배경의 색상 대비 개선"
+                onClick={handleAutoContrast}
+              >
                 색상 자동 개선
               </button>
             )}
@@ -1274,59 +1330,79 @@ const designRecommendations = getDesignRecommendations()
             <p>{typographyFeedback.message}</p>
           </div>
 
+                    {/* 객체 정렬 */}
           <div className="coach-card">
-            <h3>현재 상태</h3>
-
+            <h3>객체 정렬</h3>
             <p>{alignmentFeedback.message}</p>
 
-            
-            {objects.length >= 2 && selectedId && (
-              <div className="auto-align-buttons">
-                <button onClick={() => handleAutoAlign('left')}>
-                  왼쪽 정렬
-                </button>
+            {objects.length >= 2 && (
+              selectedId ? (
+                <div className="auto-align-buttons">
+                  <button
+                    type="button"
+                    title="선택한 객체를 왼쪽 기준으로 정렬"
+                    onClick={() => handleAutoAlign('left')}
+                  >
+                    왼쪽 정렬
+                  </button>
 
-                <button onClick={() => handleAutoAlign('center')}>
-                  가운데 정렬
-                </button>
+                  <button
+                    type="button"
+                    title="선택한 객체를 가운데 기준으로 정렬"
+                    onClick={() => handleAutoAlign('center')}
+                  >
+                    가운데 정렬
+                  </button>
 
-                <button onClick={() => handleAutoAlign('right')}>
-                  오른쪽 정렬
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    title="선택한 객체를 오른쪽 기준으로 정렬"
+                    onClick={() => handleAutoAlign('right')}
+                  >
+                    오른쪽 정렬
+                  </button>
+                </div>
+              ) : (
+                <p>캔버스나 레이어 목록에서 정렬할 객체를 선택하세요.</p>
+              )
             )}
-
           </div>
-        </aside>
-      </div>
 
-      {/* 하단 */}
+        </aside>
+          </div>
+
+      {/* 하단 작업 버튼 */}
       <footer className="bottom-bar">
         <div className="history-buttons">
           <button
+            type="button"
             onClick={handleUndo}
             disabled={past.length === 0}
+            title="마지막 작업 실행 취소"
           >
-            ↶ Undo
+            ↶ 실행 취소
           </button>
 
           <button
+            type="button"
             onClick={handleRedo}
             disabled={future.length === 0}
+            title="취소한 작업 다시 실행"
           >
-            ↷ Redo
+            ↷ 다시 실행
           </button>
         </div>
 
         <div className="zoom">100%</div>
 
         <button
+          type="button"
           className="export-btn"
           onClick={handleExportPNG}
+          title="현재 캔버스를 PNG 이미지로 저장"
         >
-          📤 출력
+          PNG로 내보내기
         </button>
-        
       </footer>
     </div>
   )

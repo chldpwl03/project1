@@ -1,4 +1,4 @@
-import { useState, type MouseEvent as ReactMouseEvent } from 'react'
+import ToolbarFrame from './ToolbarFrame'
 
 type ImageToolbarProps = {
   opacity: number
@@ -15,93 +15,62 @@ function ImageToolbar({
   onRotate,
   onDelete,
 }: ImageToolbarProps) {
-  // 이미지 툴바가 처음 나타나는 위치
-  const [position, setPosition] = useState({
-    x: 300,
-    y: 100,
-  })
-
-  const [dragging, setDragging] = useState(false)
-
-  // 툴바 드래그 이동
-  const handleMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
-    setDragging(true)
-
-    const startMouseX = e.clientX
-    const startMouseY = e.clientY
-    const startX = position.x
-    const startY = position.y
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      setPosition({
-        x: startX + (moveEvent.clientX - startMouseX),
-        y: startY + (moveEvent.clientY - startMouseY),
-      })
-    }
-
-    const handleMouseUp = () => {
-      setDragging(false)
-
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-  }
+  const opacityPercent = `${Math.round(opacity * 100)}%`
 
   return (
-    <div
+    <ToolbarFrame
+      name="이미지"
       className="image-toolbar"
-      style={{
-        position: 'fixed',
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        zIndex: 99999,
-        display: 'block',
-      }}
+      dragClassName="image-toolbar-drag"
+      resizeClassName="image-toolbar-resize"
+      initialX={300}
+      initialY={100}
     >
-      {/* 드래그 영역 */}
-      <div
-        className="image-toolbar-drag"
-        onMouseDown={handleMouseDown}
-      >
-        {dragging ? '이동 중...' : '⋮⋮ 드래그해서 이동'}
-      </div>
-
-      {/* 이미지 편집 기능 */}
       <div className="image-toolbar-controls">
-        <span>투명도</span>
+        {/* 이미지 투명도 */}
+        <label className="image-toolbar-field" title="이미지 투명도 조절">
+          <span>투명도</span>
+          <input
+            type="range"
+            min="0.1"
+            max="1"
+            step="0.1"
+            value={opacity}
+            title="이미지 투명도 조절"
+            aria-valuetext={opacityPercent}
+            onChange={(e) => onOpacityChange(Number(e.target.value))}
+          />
+          <span className="image-toolbar-value" aria-hidden="true">
+            {opacityPercent}
+          </span>
+        </label>
 
-        <input
-          type="range"
-          min="0.1"
-          max="1"
-          step="0.1"
-          value={opacity}
-          onChange={(e) =>
-            onOpacityChange(Number(e.target.value))
-          }
-        />
-
-        <span>{Math.round(opacity * 100)}%</span>
-
-        <button onClick={onFlip}>
+        {/* 좌우 반전 */}
+        <button type="button" title="이미지 좌우 반전" onClick={onFlip}>
           ↔ 반전
         </button>
 
-        <button onClick={onRotate}>
+        {/* 이미지 회전 */}
+        <button
+          type="button"
+          title="이미지 90도 회전"
+          aria-label="이미지 90도 회전"
+          onClick={onRotate}
+        >
           ↻ 90°
         </button>
 
+        {/* 이미지 삭제 */}
         <button
+          type="button"
           className="delete-image-button"
+          title="선택한 이미지 삭제"
           onClick={onDelete}
         >
-          🗑 삭제
+          삭제
         </button>
       </div>
-    </div>
+    </ToolbarFrame>
   )
 }
 
